@@ -1,0 +1,15 @@
+[Unit]
+Description=Marzban Webhook Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/marzban-webhook
+ExecStart=/usr/bin/python3 -m uvicorn main:app --host 0.0.0.0 --port 8001
+Restart=always
+RestartSec=5
+EnvironmentFile=/opt/marzban-webhook/.env
+
+[Install]
+WantedBy=multi-user.target
