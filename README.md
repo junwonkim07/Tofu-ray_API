@@ -1,7 +1,7 @@
 # TofuRay API server
 
-Marzban Lemon Squeezy Webhook Server
-FastAPI server that listens for Lemon Squeezy webhook events and automatically creates/manages Marzban users.
+Marzban Lemon Squeezy Webhook Server. 
+It is FastAPI server that listens for Lemon Squeezy webhook events and automatically creates/manages Marzban users.
 
 ## Installation
 
