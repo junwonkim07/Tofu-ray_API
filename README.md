@@ -11,7 +11,7 @@ Automatically creates and manages Marzban users when a Lemon Squeezy subscriptio
 ## Installation
 
 ```bash
-unzip marzban-webhook.zip
+git clone https://github.com/junwonkim07/Tofu-ray_API.git
 cd marzban-webhook
 bash install.sh
 ```
@@ -25,11 +25,13 @@ The script will prompt for the following and set everything up automatically:
 ## Lemon Squeezy Setup
 
 **Webhook**
+
 - Settings > Webhooks > Add webhook
 - URL: `https://webhook.yourdomain.com/webhook/lemonsqueezy`
 - Events: `subscription_created`, `subscription_updated`, `subscription_expired`, `subscription_cancelled`
 
 **Confirmation page**
+
 - After payment, call `GET /subscription/{username}` to retrieve the Marzban subscription link and display it to the user.
 
 ## Nginx
