@@ -1,26 +1,36 @@
-# Tofu-ray API server
+# Marzban Lemon Squeezy Webhook Server
 
-Marzban Lemon Squeezy Webhook Server. 
-It is FastAPI server that listens for Lemon Squeezy webhook events and automatically creates/manages Marzban users.
+Automatically creates and manages Marzban users when a Lemon Squeezy subscription is purchased.
+
+## Requirements
+
+- Linux server with Marzban already running
+- Python 3.8+
+- Root access
 
 ## Installation
 
 ```bash
-cp -r . /opt/marzban-webhook
-cd /opt/marzban-webhook
-pip3 install -r requirements.txt
-cp .env.example .env
-nano .env
+unzip marzban-webhook.zip
+cd marzban-webhook
+bash install.sh
 ```
 
-## Running as a service
+The script will prompt for the following and set everything up automatically:
 
-```bash
-cp marzban-webhook.service /etc/systemd/system/
-systemctl daemon-reload
-systemctl enable --now marzban-webhook
-systemctl status marzban-webhook
-```
+- Marzban URL, admin username, and password
+- Lemon Squeezy webhook secret
+- Monthly and yearly plan Variant IDs
+
+## Lemon Squeezy Setup
+
+**Webhook**
+- Settings > Webhooks > Add webhook
+- URL: `https://webhook.yourdomain.com/webhook/lemonsqueezy`
+- Events: `subscription_created`, `subscription_updated`, `subscription_expired`, `subscription_cancelled`
+
+**Confirmation page**
+- After payment, call `GET /subscription/{username}` to retrieve the Marzban subscription link and display it to the user.
 
 ## Nginx
 
@@ -40,36 +50,10 @@ server {
 }
 ```
 
-## Lemon Squeezy Setup
+## Service Management
 
-**Products**
-- Create a monthly and yearly subscription product.
-- Copy each Variant ID into `.env`.
-
-**Webhook**
-- Go to Settings > Webhooks > Add webhook.
-- URL: `https://webhook.yourdomain.com/webhook/lemonsqueezy`
-- Events: `subscription_created`, `subscription_updated`, `subscription_expired`, `subscription_cancelled`
-- Copy the signing secret into `.env` as `LEMONSQUEEZY_WEBHOOK_SECRET`.
-
-**Confirmation page**
-- After payment, redirect to your thank-you page and call:
-  `GET https://webhook.yourdomain.com/subscription/{username}`
-- Use the returned `subscription_url` to display the Marzban link.
-
-## Environment Variables
-
-| Variable | Description |
-|----------|-------------|
-| LEMONSQUEEZY_WEBHOOK_SECRET | Webhook signing secret from Lemon Squeezy |
-| MARZBAN_URL | Marzban panel URL (e.g. http://localhost:8000) |
-| MARZBAN_USERNAME | Marzban admin username |
-| MARZBAN_PASSWORD | Marzban admin password |
-| PLAN_MONTHLY_VARIANT_ID | Lemon Squeezy monthly plan variant ID |
-| PLAN_YEARLY_VARIANT_ID | Lemon Squeezy yearly plan variant ID |
-
-## User Rules
-
-- Username is generated from the customer email plus a 6-digit random suffix.
-- Data limit: 400 GB per month, resets monthly.
-- Monthly plan: 31 days. Yearly plan: 366 days.
+```bash
+systemctl status marzban-webhook
+systemctl restart marzban-webhook
+journalctl -u marzban-webhook -f
+```
