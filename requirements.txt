@@ -2,3 +2,6 @@ fastapi
 uvicorn
 httpx
 python-dotenv
+PyJWT
+redis
+psycopg[binary]
