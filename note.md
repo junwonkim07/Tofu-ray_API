@@ -1,51 +1,150 @@
-# 제가 필요한 정보
+# App/Worker 분리 실행 노트
 
-## 1) 환경 변수 값
+목표 구조:
+- App 1개 (`main.py`)
+- Worker 1개 (`worker.py`)
+- Postgres 1개 (관리형 권장)
+- Redis 1개 (관리형 권장)
 
-아래 값을 `.env`에 채워주세요.
+## 1) 최초 1회 준비
 
-- `STORE_JWT_SECRET`: 스토어프론트 고객 JWT에서 사용하는 동일한 시크릿
-- `STORE_JWT_ALGORITHM`: 보통 `HS256`
-- `EVENT_WEBHOOK_SECRET`: `POST /events/order-paid` 호출 시 헤더에 넣을 시크릿 값
-- `MARZBAN_URL`, `MARZBAN_USERNAME`, `MARZBAN_PASSWORD`
+```powershell
+cd C:\Users\junwo\OneDrive\문서\github\Tofu-ray_Backend
+Copy-Item .env.example .env
+```
 
-선택 값:
+`.env` 필수값:
 
-- `STORE_JWT_AUDIENCE`: JWT에서 audience 검증을 사용하는 경우
-- `MARZBAN_TIMEOUT_MS`, `MARZBAN_MAX_RETRIES`
+```env
+STORE_JWT_SECRET=change-me
+STORE_JWT_ALGORITHM=HS256
+EVENT_WEBHOOK_SECRET=change-me
 
-## 2) 이벤트 Payload 형식
+# 관리형 Postgres (Supabase 등)
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:6543/postgres?sslmode=require
 
-현재 `POST /events/order-paid`는 아래 형태의 본문을 받도록 구현되어 있습니다.
+# 관리형 Redis (Upstash/Redis Cloud 등)
+REDIS_URL=redis://default:PASSWORD@HOST:PORT
 
-```json
+ORDER_PAID_QUEUE_NAME=order_paid_events
+
+MARZBAN_URL=http://localhost:8000
+MARZBAN_USERNAME=admin
+MARZBAN_PASSWORD=change-me
+```
+
+## 2) 관리형 DB/Redis 준비 (Docker 없이)
+
+### 2-1. Postgres (Supabase 예시)
+
+- Supabase 프로젝트 생성
+- Connection string 복사
+- `sslmode=require` 포함 여부 확인
+
+예시:
+
+```env
+DATABASE_URL=postgresql://postgres.xxxxx:password@aws-0-ap-northeast-2.pooler.supabase.com:6543/postgres?sslmode=require
+```
+
+### 2-2. Redis (Upstash 예시)
+
+- Upstash Redis 생성
+- `REDIS_URL` 복사
+
+예시:
+
+```env
+REDIS_URL=redis://default:password@your-endpoint.upstash.io:6379
+```
+
+## 3) Python 의존성 설치
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+```
+
+## 4) App 실행 (터미널 A)
+
+```powershell
+cd C:\Users\junwo\OneDrive\문서\github\Tofu-ray_Backend
+.\.venv\Scripts\Activate.ps1
+uvicorn main:app --host 0.0.0.0 --port 9000 --reload
+```
+
+## 5) Worker 실행 (터미널 B)
+
+```powershell
+cd C:\Users\junwo\OneDrive\문서\github\Tofu-ray_Backend
+.\.venv\Scripts\Activate.ps1
+python worker.py
+```
+
+## 6) 빠른 검증
+
+헬스체크:
+
+```powershell
+Invoke-RestMethod http://localhost:9000/health
+```
+
+이벤트 큐 적재 테스트:
+
+```powershell
+$headers = @{
+  "Content-Type" = "application/json"
+  "X-Event-Secret" = "change-me"
+}
+
+$body = @'
 {
   "order": {
-    "id": "order_01",
-    "customer_id": "cus_01",
-    "customer_email": "user@example.com"
+    "id": "order_test_01",
+    "customer_id": "cus_test_01",
+    "customer_email": "test@example.com"
   },
   "line_items": [
     {
-      "id": "item_01",
+      "id": "item_test_01",
       "title": "Pro 30 Days",
       "metadata": {
         "is_subscription": true,
         "duration_days": 30,
-        "traffic_limit_gb": 100,
-        "plan_id": "pro_30"
+        "traffic_limit_gb": 100
       }
     }
   ]
 }
+'@
+
+Invoke-RestMethod -Method Post -Uri http://localhost:9000/events/order-paid -Headers $headers -Body $body
 ```
 
-백엔드의 실제 이벤트 포맷이 다르면, 실제 payload 예시를 주시면 해당 형식으로 바로 매핑해드리겠습니다.
+정상 시 기대값:
+- App 응답: `status=accepted`, `queued=true`
+- Worker 로그: `Processed queued event ...`
 
-## 3) 빠른 검증 방법
+## 7) 실패 시 우선 점검
 
-1. 구독 상품에 대해 결제 완료 이벤트를 1회 발생시킵니다.
-2. 고객 JWT로 `GET /store/subscriptions/me`를 호출합니다.
-3. 같은 JWT로 `GET /store/orders/{id}/subscription`를 호출합니다.
+1. Postgres 접속 실패
+- `DATABASE_URL` 오타/비밀번호 확인
+- `sslmode=require` 확인
 
-실제 JWT payload 예시 1개(클레임만, 시크릿 제외)만 주시면 `customer_id`와 `sub` 매핑을 운영 환경에 맞게 더 정확하게 고정해드릴 수 있습니다.
+2. Redis 접속 실패
+- `REDIS_URL` 오타 확인
+- Redis provider의 TLS 요구사항 확인
+
+3. Worker가 이벤트를 못 받음
+- App 응답에 `queued=true` 인지 확인
+- `ORDER_PAID_QUEUE_NAME`가 app/worker 동일한지 확인
+
+## 8) (선택) 로컬 Docker 인프라로 대체 실행
+
+Docker가 있을 때만 사용:
+
+```powershell
+docker compose -f docker-compose.infra.yml up -d
+docker compose -f docker-compose.infra.yml ps
+```
